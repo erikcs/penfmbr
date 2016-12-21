@@ -1,0 +1,18 @@
+Package: penfmbr
+Type: Package
+Title: Penalized FamaMacBeth
+Version: 0.1.0
+Author: Erik
+Maintainer: Erik <erik.fredriksen@phdstudent.hhs.se>
+Description: Penalized and plain FMB estimation.
+License: MIT
+Encoding: UTF-8
+LazyData: true
+Imports:
+    Rcpp (>= 0.12.5),
+    tseries,
+    MASS
+LinkingTo: Rcpp, RcppArmadillo
+Suggests:
+    testthat
+RoxygenNote: 5.0.1

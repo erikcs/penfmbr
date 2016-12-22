@@ -14,7 +14,7 @@ calculated as the Fisher transform of partial correlations.
 \details{
 `returns` and `factors` are two containers with equal number of observations
 (aligned) that can be coerced to a matrix.
-Both estimators return a hacked together sublass of `lm` that plays
+Both estimators return a crudely hacked together sublass of `lm` that plays
 nicely with `stargazer`.
 }
 

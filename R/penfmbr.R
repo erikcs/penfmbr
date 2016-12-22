@@ -7,7 +7,7 @@
 #'
 #' `returns` and `factors` are two containers with equal number of observations
 #' (aligned) that can be coerced to a matrix.
-#' Both estimators return a hacked together sublass of `lm` that plays
+#' Both estimators return a crudely hacked together sublass of `lm` that plays
 #' nicely with `stargazer`.
 #'
 #' @docType package
@@ -45,7 +45,7 @@ fmb = function(factors, returns) {
 #' @export
 #' @param factors The factors
 #' @param returns The returns
-#' @param alpha Tthe penalty parameter, default 4
+#' @param alpha The penalty parameter, default 4
 #' @param nboot Number of bootstrap replications for the shrinkage rate, default 100
 #' @param nblocks Number of blocks in the stationary bootstrap, default 5
 #' @return A `penfmb` instance
@@ -73,9 +73,11 @@ penfmb = function(factors, returns, alpha = 4, nboot=100, nblocks=5) {
 
     # No good reason to avoid using `glmnet` except that it did not play nicely
     # with all penalties = 0, and 1-column `X` input.
-    fit = cd(betas, avg_ret, alpha = nu, alpha_weights = penalty, tol=1e-6, maxiter = 1e6)
+    fit = cd(betas, avg_ret, alpha = nu, alpha_weights = penalty, tol=1e-5, maxiter = 1e5)
 
     c(fit$w0, fit$w)
+    # fit = glmnet::glmnet(betas, avg_ret, alpha = 1, lambda = nu, penalty.factor = penalty)
+    # c(as.vector(fit$a0), as.vector(fit$beta))
   }
 
   factors = as.matrix(factors)
@@ -84,13 +86,12 @@ penfmb = function(factors, returns, alpha = 4, nboot=100, nblocks=5) {
   # Get the shrinkage rate
   bootidx = tseries::tsbootstrap(1:nrow(returns), nb = nboot, b = nblocks, type = 'stationary')
   bootcoefs = apply(bootidx, 2, function(x)
-    .penfmb.fit(factors[x, ,drop = FALSE], returns[x, ], alpha))
+    .penfmb.fit(factors[x, , drop = FALSE], returns[x, ], alpha))
 
   # Dummy obj
   dfit = fmb(factors, returns)
-  coefs = .penfmb.fit(factors, returns, alpha)
+  dfit$coefficients = .penfmb.fit(factors, returns, alpha)
 
-  dfit$coefficients = coefs
   dfit$fitted.values = cbind(1, dfit$betas) %*% dfit$coefficients
   dfit$residuals = dfit$avg_ret - dfit$fitted.values
   dfit$bootcoefs = bootcoefs
@@ -102,8 +103,8 @@ penfmb = function(factors, returns, alpha = 4, nboot=100, nblocks=5) {
 }
 
 
-# Shanken standard errors
-# TODO: vcov from GMM estimation
+# Shanken standard errors by default
+# TODO: maybe GMM vcov
 #' @export
 vcov.fmb = function(object, ...) {
   .sandwich = function(bread, meat)
@@ -113,11 +114,11 @@ vcov.fmb = function(object, ...) {
   lambdas = object$coefficients[-1]
   factors = object$factors
 
-  scaling = 1 + as.numeric(.sandwich(lambdas, MASS::ginv(var(factors))))
+  scaling = 1 + as.numeric(.sandwich(lambdas, MASS::ginv(cov(factors))))
 
   vcovShanken = (.sandwich(
     MASS::ginv(cbind(1, betas) %*% t(cbind(1, betas))) %*% cbind(1, betas),
-    var(object$first_stage$residuals)) *
+    cov(object$first_stage$residuals)) *
       scaling +
       cbind(0, rbind(0, var(factors)))) /
     nrow(factors)
@@ -129,13 +130,13 @@ vcov.fmb = function(object, ...) {
 }
 
 
-# Heavily overloaded
+# Heavily overloaded to easily produce table output
 #' @export
 vcov.penfmb = function(object, ...) {
 
   shrinkage_rate = rowSums(object$bootcoefs == 0) / ncol(object$bootcoefs)
-  vcov = diag(shrinkage_rate^2)
-  colnames(vcov) = rownames(vcov) = names(object$coefficients)
+  shrinkage_rate = diag(shrinkage_rate^2)
+  colnames(shrinkage_rate) = rownames(shrinkage_rate) = names(object$coefficients)
 
-  vcov
+  shrinkage_rate
 }

@@ -11,7 +11,7 @@ penfmb(factors, returns, alpha = 4, nboot = 100, nblocks = 5)
 
 \item{returns}{The returns}
 
-\item{alpha}{Tthe penalty parameter, default 4}
+\item{alpha}{The penalty parameter, default 4}
 
 \item{nboot}{Number of bootstrap replications for the shrinkage rate, default 100}
 

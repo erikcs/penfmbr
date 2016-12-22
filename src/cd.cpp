@@ -40,11 +40,15 @@ Rcpp::List cd(arma::mat X, arma::vec y, double alpha,
   y = y - ybar;
   X = (X - arma::repmat(Xbar, n, 1)) / arma::repmat(Xstd, n, 1);
 
-  for (int n_iter = 0; n_iter < maxiter; n_iter++) {
-    r = y - X * w;
+  r = y - X * w;
 
-    for (int i = 0; i < p; i++)
+  for (int n_iter = 0; n_iter < maxiter; n_iter++) {
+    for (int i = 0; i < p; i++) {
       w(i) = soft_thresh(w(i) + dot(X.col(i), r) / n, alpha * alpha_weights(i));
+      // Update residuals, could check if zero first
+      r += wp(i) * X.col(i);
+      r -= w(i) * X.col(i);
+    }
 
     converged =  arma::norm(w - wp) < tol;
     if (converged)

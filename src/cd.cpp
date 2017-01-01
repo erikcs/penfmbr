@@ -16,7 +16,7 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
 
-double soft_thresh(double x, double value) {
+inline double soft_thresh(double x, double value) {
   int sign = x < 0 ? -1 : 1;
   return sign * std::max(std::abs(x) - value, 0.0);
 }
@@ -40,12 +40,18 @@ Rcpp::List cd(arma::mat X, arma::vec y, double alpha,
   y = y - ybar;
   X = (X - arma::repmat(Xbar, n, 1)) / arma::repmat(Xstd, n, 1);
 
+  // glmnet style rescaling, has a discontinuity at zero...
+  // alpha = alpha * arma::sum(alpha_weights) / p;
+  // if (arma::max(alpha_weights) > 1e-6) {
+  //       alpha_weights *= p / arma::sum(alpha_weights);
+  // }
+
   r = y - X * w;
 
   for (int n_iter = 0; n_iter < maxiter; n_iter++) {
     for (int i = 0; i < p; i++) {
       w(i) = soft_thresh(w(i) + dot(X.col(i), r) / n, alpha * alpha_weights(i));
-      // Update residuals, could check if zero first
+      // Update residuals (could check if zero first)
       r += wp(i) * X.col(i);
       r -= w(i) * X.col(i);
     }

@@ -1,7 +1,7 @@
 [![Travis-CI Build Status](https://travis-ci.org/nuffe/penfmbr.svg?branch=master)](https://travis-ci.org/nuffe/penfmbr)
 
 ## penfmbr
-penalized FamaMacBeth
+simple implementation of the penalized FamaMacBeth estimator*
 
 ## Installation
 ```r
@@ -67,3 +67,5 @@ stargazer(models,
 # Note:       FamaMacBeth: Shanken standard errors in parenthesis                   
 #             Penalized FamaMacBeth: bootstrapped shrinkage rate in parenthesis
 ```
+
+> *S. Bryzgalova, Spurious Factors in Linear Asset Pricing Models (2016 WP)

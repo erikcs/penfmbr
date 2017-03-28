@@ -114,8 +114,14 @@ vcov.fmb = function(object, ...) {
   .sandwich = function(bread, meat)
     t(bread) %*% meat %*% bread
 
-  betas = object$betas
+  intercept = TRUE
   lambdas = object$coefficients[-1]
+  if (attr(terms(object), 'intercept') == 0) {
+    intercept = FALSE
+    lambdas = object$coefficients
+  }
+
+  betas = object$betas
   factors = object$factors
 
   scaling = 1 + as.numeric(.sandwich(lambdas, MASS::ginv(cov(factors))))
@@ -129,6 +135,9 @@ vcov.fmb = function(object, ...) {
 
   rownames(vcovShanken)[1] = '(Intercept)'
   colnames(vcovShanken)[1] = '(Intercept)'
+
+  if (!intercept)
+    vcovShanken = vcovShanken[-1, -1]
 
   vcovShanken
 }

@@ -21,7 +21,7 @@ NULL
 #' @param factors The factors
 #' @param returns The returns
 #' @return An `fmb` instance
-fmb = function(factors, returns) {
+fmb = function(factors, returns, intercept=TRUE) {
   factors = as.matrix(factors)
   returns = as.matrix(returns)
   avg_ret = colMeans(returns)
@@ -30,7 +30,11 @@ fmb = function(factors, returns) {
   betas = as.matrix(t(first_stage$coefficients)[, -1])
   colnames(betas)= colnames(factors)
 
-  fit = lm(avg_ret ~ ., data.frame(betas, avg_ret))
+  if (intercept)
+    fit = lm(avg_ret ~ ., data.frame(betas, avg_ret))
+  else
+    fit = lm(avg_ret ~ . -1, data.frame(betas, avg_ret))
+
   fit$first_stage = first_stage
   fit$avg_ret = avg_ret
   fit$betas = betas

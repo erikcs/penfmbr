@@ -137,7 +137,7 @@ vcov.fmb = function(object, ...) {
   colnames(vcovShanken)[1] = '(Intercept)'
 
   if (!intercept)
-    vcovShanken = vcovShanken[-1, -1]
+    vcovShanken = as.matrix(vcovShanken[-1, -1])
 
   vcovShanken
 }

@@ -14,6 +14,7 @@ devtools::install_github("nuffe/penfmbr")
 library(penfmbr)
 library(stargazer)
 
+# Load factors and returns data from the accompanying test folder
 path = paste(.libPaths()[1], "/penfmbr/tests/testthat", sep = "")
 factors = read.csv(paste(path, "/factors.csv", sep = ""))[, -1]
 returns = read.csv(paste(path, "/returns.csv", sep = ""))[, -1]
@@ -28,6 +29,7 @@ models = list(
 )
 
 stargazer(models,
+          # (generic methods are added for vcov - computes shrinakge rate and/or GMM/Shanken standard errors)
           se = lapply(models, function(x) sqrt(diag(vcov(x)))),
           keep.stat = 'adj.rsq',
           type = 'text',
@@ -68,4 +70,4 @@ stargazer(models,
 #             Penalized FamaMacBeth: bootstrapped shrinkage rate in parenthesis
 ```
 
-> *S. Bryzgalova, Spurious Factors in Linear Asset Pricing Models (2016 WP)
+> *S. Bryzgalova, Spurious Factors in Linear Asset Pricing Models (2016)

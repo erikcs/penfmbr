@@ -4,12 +4,14 @@
 \alias{fmb}
 \title{fmb}
 \usage{
-fmb(factors, returns)
+fmb(factors, returns, intercept = TRUE)
 }
 \arguments{
 \item{factors}{The factors}
 
 \item{returns}{The returns}
+
+\item{intercept, }{default TRUE: fit a constant in the second stage}
 }
 \value{
 An `fmb` instance
@@ -17,4 +19,3 @@ An `fmb` instance
 \description{
 fmb
 }
-

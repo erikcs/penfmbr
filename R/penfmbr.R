@@ -10,23 +10,42 @@
 #' Both estimators return a crudely hacked together sublass of `lm` that plays
 #' nicely with `stargazer`.
 #'
+#' `vcov` can return either Shanken or GMM standard errors. For a `penfmb`
+#' instance, the bootstrapped shrinkage rate is returned.
+#'
 #' @docType package
 #' @name penfmbr
 #'@importFrom Rcpp evalCpp
 #'@useDynLib penfmbr
 NULL
 
+
 #' fmb
 #' @export
 #' @param factors The factors
 #' @param returns The returns
+#' @param intercept, default TRUE: fit a constant in the second stage
 #' @return An `fmb` instance
 fmb = function(factors, returns, intercept=TRUE) {
   factors = as.matrix(factors)
   returns = as.matrix(returns)
-  avg_ret = colMeans(returns)
+  avg_ret = colMeans(returns, na.rm = TRUE)
 
-  first_stage  = .lm.fit(cbind(1, factors), returns)
+  # first_stage  = .lm.fit(cbind(1, factors), returns)
+  # For allowing missing values
+  first_stage = list()
+  k = ncol(factors)
+  n = ncol(returns)
+  len = nrow(returns)
+  coefficients = matrix(NA, k+1, n)
+  residuals = matrix(NA, len, n)
+  for (i in 1:n) {
+    fit = lm(i ~ ., data.frame(factors, i=returns[, i]))
+    coefficients[, i] = fit$coefficients
+    residuals[, i] = t(returns[,i] - as.matrix(cbind(1, factors)) %*% coefficients[, i])
+  }
+  first_stage$coefficients = coefficients
+  first_stage$residuals = residuals
   betas = as.matrix(t(first_stage$coefficients)[, -1])
   colnames(betas)= colnames(factors)
 
@@ -40,10 +59,13 @@ fmb = function(factors, returns, intercept=TRUE) {
   fit$betas = betas
   fit$factors = factors
   fit$returns = returns
+  fit$predicted = predict(fit)
+  fit$portfolio_names = colnames(returns)
 
   class(fit) = c('fmb', 'lm')
   fit
 }
+
 
 #' penfmb
 #' @export
@@ -108,9 +130,30 @@ penfmb = function(factors, returns, alpha = 4, nboot=100, nblocks=5) {
 
 
 # Shanken standard errors by default
-# TODO: maybe GMM vcov
 #' @export
-vcov.fmb = function(object, ...) {
+vcov.fmb = function(object, type = 'Shanken', ...) {
+  if (type == 'Shanken')
+    return (vcov_shanken(object, ...))
+  if (type == 'GMM')
+    return (vcov_gmm(object, ...))
+  else
+    stop('Unknown covariance type')
+}
+
+
+# Heavily overloaded to easily produce table output
+#' @export
+vcov.penfmb = function(object, ...) {
+  shrinkage_rate = rowSums(object$bootcoefs == 0) / ncol(object$bootcoefs)
+  shrinkage_rate = diag(shrinkage_rate^2)
+  colnames(shrinkage_rate) = rownames(shrinkage_rate) = names(object$coefficients)
+
+  shrinkage_rate
+}
+
+
+vcov_shanken = function(object, ...) {
+# Cochrane (2005)
   .sandwich = function(bread, meat)
     t(bread) %*% meat %*% bread
 
@@ -120,22 +163,17 @@ vcov.fmb = function(object, ...) {
     intercept = FALSE
     lambdas = object$coefficients
   }
-
   betas = object$betas
   factors = object$factors
-
   scaling = 1 + as.numeric(.sandwich(lambdas, MASS::ginv(cov(factors))))
-
   vcovShanken = (.sandwich(
     MASS::ginv(cbind(1, betas) %*% t(cbind(1, betas))) %*% cbind(1, betas),
-    cov(object$first_stage$residuals)) *
+    cov(object$first_stage$residuals, use='complete.obs')) *
       scaling +
       cbind(0, rbind(0, var(factors)))) /
     nrow(factors)
-
   rownames(vcovShanken)[1] = '(Intercept)'
   colnames(vcovShanken)[1] = '(Intercept)'
-
   if (!intercept)
     vcovShanken = as.matrix(vcovShanken[-1, -1])
 
@@ -143,13 +181,72 @@ vcov.fmb = function(object, ...) {
 }
 
 
-# Heavily overloaded to easily produce table output
+vcov_gmm = function(object, ...) {
+# Cochrane (2005)
+  ut = object$first_stage$residuals
+  factors = object$factors
+  returns = object$returns
+  k = ncol(factors)
+  n = ncol(returns)
+  Eff = cov(factors, use='complete.obs')
+  lambdas = object$coefficients
+  s = k
+  if (attr(terms(object), 'intercept') == 0) {
+    lambdas = c(0, object$coefficients)
+    s = k - 1
+  }
+
+  for (i in 1:k)
+    ut = cbind(ut, object$first_stage$residuals * factors[, i])
+  ut = cbind(ut, as.data.frame(returns) - t(object$first_stage$coefficients) %*% lambdas)
+  ut_demeaned = ut - colMeans(ut, na.rm = TRUE)
+  S = cov(ut_demeaned, use='complete.obs')
+  upper = cbind(diag(n*(k+1)), matrix(0, n*(k+1), n))
+  lower = cbind(matrix(0, k+1, n*(k+1)), rbind(1, t(object$betas)))
+  a = rbind(upper, lower)
+  d = rbind(cbind(1, t(colMeans(factors))), cbind(colMeans(factors), Eff))
+  d = kronecker(d, diag(n))
+  upper = cbind(d, matrix(0, n*(k+1), k+1))
+  lower = cbind(matrix(0, n, n), t(kronecker(lambdas[-1], diag(n))),  cbind(1, object$betas))
+  d = -rbind(upper, lower)
+  vargmm = 1/ nrow(factors) * MASS::ginv(a%*%d) %*% a %*% S %*% t(a)%*%t(MASS::ginv(a%*%d))
+  vcovgmm = vargmm[(ncol(vargmm)-s):ncol(vargmm), (ncol(vargmm)-s):ncol(vargmm)]
+  colnames(vcovgmm) = names(object$coefficients)
+  rownames(vcovgmm) = names(object$coefficients)
+
+  vcovgmm
+}
+
+
+#' chisq_fmb
 #' @export
-vcov.penfmb = function(object, ...) {
+#' @param object The fitted fmb model
+#' @return A list containing the chi square test statistic and the p value
+#' of all pricing errors jointly being zero
+chisq_fmb = function(object) {
+  factors = object$factors
+  intercept = TRUE
+  lambdas = object$coefficients[-1]
+  if (attr(terms(object), 'intercept') == 0) {
+    intercept = FALSE
+    lambdas = object$coefficients
+  }
+  .sandwich = function(bread, meat)
+    t(bread) %*% meat %*% bread
+  scaling = 1 + as.numeric(.sandwich(lambdas, MASS::ginv(cov(factors, use='complete.obs'))))
+  N = length(object$avg_ret)
+  K = ncol(factors)
+  alphas = matrix(residuals(object), nrow = N, ncol = 1)
+  sigma = cov(object$first_stage$residuals, use='complete.obs')
+  sigma_f =  cbind(0, rbind(0, var(factors))) / nrow(factors)
+  I_N = diag(N)
+  betas = object$betas
+  betas_a = cbind(1, betas)
+  left = I_N - betas_a %*% MASS::ginv( t(betas_a) %*% betas_a ) %*% t(betas_a)
+  right = t(left)
+  Cov_a = left %*% sigma %*% right * scaling / nrow(object$returns)
+  chi = t(alphas) %*% MASS::ginv(Cov_a) %*% alphas
+  pval = pchisq(chi, N - K, lower.tail = FALSE)
 
-  shrinkage_rate = rowSums(object$bootcoefs == 0) / ncol(object$bootcoefs)
-  shrinkage_rate = diag(shrinkage_rate^2)
-  colnames(shrinkage_rate) = rownames(shrinkage_rate) = names(object$coefficients)
-
-  shrinkage_rate
+  list(statistic = chi, p.value = pval)
 }

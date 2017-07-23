@@ -23,4 +23,3 @@ A `penfmb` instance
 \description{
 penfmb
 }
-

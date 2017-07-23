@@ -16,5 +16,7 @@ calculated as the Fisher transform of partial correlations.
 (aligned) that can be coerced to a matrix.
 Both estimators return a crudely hacked together sublass of `lm` that plays
 nicely with `stargazer`.
-}
 
+`vcov` can return either Shanken or GMM standard errors. For a `penfmb`
+instance, the bootstrapped shrinkage rate is returned.
+}

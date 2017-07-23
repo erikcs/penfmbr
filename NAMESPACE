@@ -3,6 +3,7 @@
 S3method(vcov,fmb)
 S3method(vcov,penfmb)
 export(cd)
+export(chisq_fmb)
 export(fmb)
 export(penfmb)
 importFrom(Rcpp,evalCpp)

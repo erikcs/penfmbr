@@ -29,7 +29,7 @@ models = list(
 )
 
 stargazer(models,
-          # (generic methods are added for vcov - computes shrinakge rate and/or GMM/Shanken standard errors)
+          # (generic methods are added for vcov - computes shrinkage rate and/or Shanken/GMM standard errors)
           se = lapply(models, function(x) sqrt(diag(vcov(x)))),
           keep.stat = 'adj.rsq',
           type = 'text',

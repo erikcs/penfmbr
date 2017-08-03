@@ -20,19 +20,20 @@
 NULL
 
 
-#' fmb
+#' FMB allowing for an unbalanced panel
 #' @export
-#' @param factors The factors
-#' @param returns The returns
+#' @param factors The factors [factor1, factor2, ..., factork]
+#' @param returns The returns [ret1, ret2, ..., retn]
 #' @param intercept, default TRUE: fit a constant in the second stage
 #' @return An `fmb` instance
 fmb = function(factors, returns, intercept=TRUE) {
   factors = as.matrix(factors)
   returns = as.matrix(returns)
+  stopifnot(nrow(factors) == nrow(returns))
   avg_ret = colMeans(returns, na.rm = TRUE)
 
   # first_stage  = .lm.fit(cbind(1, factors), returns)
-  # For allowing missing values
+  # For allowing missing values in returns
   first_stage = list()
   k = ncol(factors)
   n = ncol(returns)
@@ -49,10 +50,31 @@ fmb = function(factors, returns, intercept=TRUE) {
   betas = as.matrix(t(first_stage$coefficients)[, -1])
   colnames(betas)= colnames(factors)
 
-  if (intercept)
+  if  (intercept) {
+    # Just a dummy, allow for unbalanced panel
     fit = lm(avg_ret ~ ., data.frame(betas, avg_ret))
-  else
+    lambdas = matrix(, len, k + 1)
+    colnames(lambdas) = names(fit$coefficients)
+    for (i in 1:len) {
+      mask = complete.cases(returns[i, ])
+      lambdas[i, ] = .lm.fit(cbind(1, betas[mask, ]), returns[i, mask])$coefficients
+    }
+    fit$coefficients = colMeans(lambdas)
+    fit$fitted.values = cbind(1, betas) %*% fit$coefficients
+    fit$residuals = avg_ret - fit$fitted.values
+  }
+  else {
     fit = lm(avg_ret ~ . -1, data.frame(betas, avg_ret))
+    lambdas = matrix(, len, k)
+    colnames(lambdas) = names(fit$coefficients)
+    for (i in 1:len) {
+      mask = complete.cases(returns[i, ])
+      lambdas[i, ] = .lm.fit(betas[mask, ], returns[i, mask])$coefficients
+    }
+    fit$coefficients = colMeans(lambdas)
+    fit$fitted.values = betas %*% fit$coefficients
+    fit$residuals = avg_ret - fit$fitted.values
+  }
 
   fit$first_stage = first_stage
   fit$avg_ret = avg_ret
@@ -183,12 +205,20 @@ vcov_shanken = function(object, ...) {
 
 vcov_gmm = function(object, ...) {
 # Cochrane (2005)
+  covna = function(x) {
+  complete = complete.cases(x)
+  as.matrix(t(x[complete,])) %*% as.matrix(x[complete,]) /
+    sum(complete)
+  }
+
   ut = object$first_stage$residuals
+  nT = sum(complete.cases(ut))
   factors = object$factors
   returns = object$returns
   k = ncol(factors)
   n = ncol(returns)
-  Eff = cov(factors, use='complete.obs')
+  # Eff = cov(factors, use='complete.obs')
+  Eff = covna(factors)
   lambdas = object$coefficients
   s = k
   if (attr(terms(object), 'intercept') == 0) {
@@ -200,7 +230,8 @@ vcov_gmm = function(object, ...) {
     ut = cbind(ut, object$first_stage$residuals * factors[, i])
   ut = cbind(ut, as.data.frame(returns) - t(object$first_stage$coefficients) %*% lambdas)
   ut_demeaned = ut - colMeans(ut, na.rm = TRUE)
-  S = cov(ut_demeaned, use='complete.obs')
+  # S = cov(ut_demeaned, use='complete.obs')
+  S = covna(ut_demeaned)
   upper = cbind(diag(n*(k+1)), matrix(0, n*(k+1), n))
   lower = cbind(matrix(0, k+1, n*(k+1)), rbind(1, t(object$betas)))
   a = rbind(upper, lower)
@@ -209,7 +240,7 @@ vcov_gmm = function(object, ...) {
   upper = cbind(d, matrix(0, n*(k+1), k+1))
   lower = cbind(matrix(0, n, n), t(kronecker(lambdas[-1], diag(n))),  cbind(1, object$betas))
   d = -rbind(upper, lower)
-  vargmm = 1/ nrow(factors) * MASS::ginv(a%*%d) %*% a %*% S %*% t(a)%*%t(MASS::ginv(a%*%d))
+  vargmm = MASS::ginv(a%*%d) %*% a %*% S %*% t(a)%*%t(MASS::ginv(a%*%d)) / nT
   vcovgmm = vargmm[(ncol(vargmm)-s):ncol(vargmm), (ncol(vargmm)-s):ncol(vargmm)]
   colnames(vcovgmm) = names(object$coefficients)
   rownames(vcovgmm) = names(object$coefficients)
@@ -248,5 +279,5 @@ chisq_fmb = function(object) {
   chi = t(alphas) %*% MASS::ginv(Cov_a) %*% alphas
   pval = pchisq(chi, N - K, lower.tail = FALSE)
 
-  list(statistic = chi, p.value = pval)
+  list(statistic = chi, p.value = pval, mape = mean(abs(alphas)))
 }

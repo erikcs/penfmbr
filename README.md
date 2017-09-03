@@ -6,7 +6,7 @@ simple implementation of the penalized FamaMacBeth estimator*
 ## Installation
 ```r
 install.packages("devtools")
-devtools::install_github("nuffe/penfmbr")
+devtools::install_github("erikcs/penfmbr")
 ```
 
 ## Example

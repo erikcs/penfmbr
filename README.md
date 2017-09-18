@@ -1,4 +1,4 @@
-[![Travis-CI Build Status](https://travis-ci.org/nuffe/penfmbr.svg?branch=master)](https://travis-ci.org/erikcs/penfmbr)
+[![Travis-CI Build Status](https://travis-ci.org/erikcs/penfmbr.svg?branch=master)](https://travis-ci.org/erikcs/penfmbr)
 
 ## penfmbr
 simple implementation of the penalized FamaMacBeth estimator*
